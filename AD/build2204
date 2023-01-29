@@ -1,0 +1,80 @@
+build tested with samba 4.17.5
+wget https://download.samba.org/pub/samba/stable/samba-4.17.5.tar.gz
+************************************************************************************************
+set /etc/hosts set /etc/hostname 
+
+./configure
+
+make
+
+make install
+
+export PATH=/usr/local/samba/bin/:/usr/local/samba/sbin/:$PATH
+
+nano /etc/profile.d/samba-path.sh
+
+PATH=${PATH}:/usr/local/samba/bin:/usr/local/samba/sbin
+
+
+nano /etc/sudoers
+
+...
+Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/samba/bin:/usr/local/samba/sbin"
+
+systemctl mask smbd nmbd winbind
+systemctl disable smbd nmbd winbind
+
+
+samba-tool domain provision --use-rfc2307 --interactive
+
+ln -sf /usr/local/samba/private/krb5.conf /etc/krb5.conf
+ln -s /usr/local/samba/etc/smb.conf /etc/samba/smb.conf
+
+
+Samba does not provide a systemd service file. When you built the Samba Active Directory (AD) domain controller (DC) from the sources, you must manually create the service file to enable systemd to manage the Samba AD DC service:
+Create the /etc/systemd/system/samba-ad-dc.service file with the following content:
+
+nano /etc/systemd/system/samba-ad-dc.service
+
+
+[Unit]
+Description=Samba Active Directory Domain Controller
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/samba/sbin/samba -D
+PIDFile=/usr/local/samba/var/run/samba.pid
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+ systemctl daemon-reload
+
+
+sudo systemctl start samba-ad-dc.service
+sudo systemctl status samba-ad-dc.service
+sudo systemctl enable samba-ad-dc.service
+
+systemctl start samba-ad-dc
+
+systemctl enable samba-ad-dc
+
+ 
+must be done
+
+sudo systemctl disable --now systemd-resolved
+
+nano /etc/resolv.conf
+
+nameserver 8.8.8.8
+nameserver 192.168.1.1
+nameserver 127.0.0.1
+domain skk.lan
+
+
+sudo samba-tool domain level show
+
+sudo samba-tool domain passwordsettings set --complexity=off
